@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+dist/
+out/
+
+
+# Third-party stills: local only; web/SOURCES.md says where to get each.
+reference/web/*.png

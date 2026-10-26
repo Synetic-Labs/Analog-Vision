@@ -5,6 +5,7 @@ analog-vision apply in.png out.png --distance 1200 --tx-mw 25
 analog-vision sweep in.png sweep.png --cnr 30,15,11,9,7,5
 analog-vision sweep in.png sweep.png --cnr 22,16 --indoor 0 --speed 5
 analog-vision fly in.png frames/ --from 200 --to 3000 --frames 120
+analog-vision view                      # every setting on a web page, live
 """
 
 import argparse
@@ -105,6 +106,16 @@ def cmd_fly(args: argparse.Namespace) -> None:
         print(f"{i:4d}  {d:7.0f} m  CNR {sim.link.cnr_db:5.1f} dB  sync {shown.synced:.2f}")
 
 
+def cmd_view(args: argparse.Namespace) -> None:
+    from analog_vision.viewer import export, serve
+
+    pictures = [Path(p) for p in args.pictures]
+    if args.export:
+        export(pictures, Path(args.export))
+    else:
+        serve(pictures, args.host, args.port, browser=not args.no_browser)
+
+
 def main() -> None:
     summary = (__doc__ or "").split("\n")[0]
     parser = argparse.ArgumentParser(prog="analog-vision", description=summary)
@@ -151,6 +162,14 @@ def main() -> None:
     p.add_argument("--to", dest="end", type=float, default=3000.0, help="metres")
     p.add_argument("--frames", type=int, default=90)
     p.set_defaults(func=cmd_fly, distance=0.0, cnr=0.0)
+
+    p = sub.add_parser("view", help="a web page to try every setting on a picture")
+    p.add_argument("pictures", nargs="*", help="pictures to offer (default: ./reference)")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--no-browser", action="store_true")
+    p.add_argument("--export", metavar="DIR", help="write the page as static files instead")
+    p.set_defaults(func=cmd_view)
 
     args = parser.parse_args()
     args.func(args)

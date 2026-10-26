@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>analog-vision viewer</title>
+<link rel="icon" href="data:,">
+<style>
+:root {
+  --bg: #0f1012;
+  --panel: #17181b;
+  --raised: #202226;
+  --line: #2b2d32;
+  --text: #e6e6e3;
+  --muted: #8f9198;
+  --faint: #5d6068;
+  --accent: #e3a33b;
+  --accent-soft: rgba(227, 163, 59, 0.14);
+  --bad: #ff7a66;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  display: grid; grid-template-columns: 380px minmax(0, 1fr); overflow: hidden;
+}
+button, select, input { font: inherit; color: inherit; }
+button {
+  background: var(--raised); border: 1px solid var(--line); border-radius: 6px;
+  padding: 4px 10px; cursor: pointer;
+}
+button:hover { border-color: var(--faint); }
+button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+select { background: var(--raised); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; }
+input[type="number"] {
+  width: 84px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px;
+  padding: 2px 6px; font-family: var(--mono); font-size: 12px; text-align: right;
+}
+input[type="number"]:disabled { color: var(--muted); }
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0 0; }
+input[type="checkbox"] { accent-color: var(--accent); }
+
+/* Sidebar */
+aside { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; }
+.brand { padding: 14px 16px 10px; display: flex; align-items: baseline; gap: 8px; }
+.brand h1 { font-size: 15px; margin: 0; letter-spacing: 0.01em; }
+.brand span { color: var(--muted); font-size: 12px; flex: 1; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 12px; }
+.presets button { font-size: 12px; padding: 3px 8px; }
+details.section { border-top: 1px solid var(--line); }
+details.section > summary {
+  padding: 10px 16px; cursor: pointer; font-weight: 600; list-style: none;
+  display: flex; align-items: center; gap: 8px; user-select: none;
+}
+details.section > summary::before { content: "▸"; color: var(--faint); font-size: 10px; }
+details.section[open] > summary::before { content: "▾"; }
+details.section > summary .count { color: var(--accent); font-weight: 400; font-size: 12px; }
+.body { padding: 0 16px 14px; }
+.about { color: var(--muted); font-size: 12px; margin: 0 0 10px; white-space: pre-line; }
+.about.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); margin: 14px 0 4px; font-weight: 600; }
+.row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+.row > label { flex: 1; }
+
+.ctl { padding: 6px 0 4px; }
+.ctl-head { display: flex; align-items: center; gap: 6px; }
+.ctl-name { font-family: var(--mono); font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctl.changed .ctl-name { color: var(--accent); }
+.unit { color: var(--muted); font-size: 11px; min-width: 30px; }
+.icon { border: none; background: none; padding: 2px 4px; color: var(--faint); border-radius: 4px; line-height: 1; }
+.icon:hover { color: var(--text); background: var(--raised); }
+.icon.reset { visibility: hidden; }
+.ctl.changed .icon.reset { visibility: visible; }
+.icon.sweeping { color: var(--accent); }
+.ctl-doc { color: var(--muted); font-size: 11.5px; margin-top: 2px; cursor: pointer;
+  display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.ctl-doc.open { -webkit-line-clamp: unset; }
+.part { display: grid; grid-template-columns: 44px 1fr 84px; gap: 6px; align-items: center; margin-top: 2px; }
+.part span { color: var(--muted); font-size: 11px; }
+.ctl select { min-width: 96px; }
+
+.echo { background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; margin: 8px 0; }
+.echo-head { display: flex; align-items: center; font-weight: 600; font-size: 12px; }
+.echo-head span { flex: 1; }
+.indoor { border: 1px dashed var(--line); border-radius: 8px; padding: 4px 10px 10px; margin-top: 10px; }
+
+/* Main */
+main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100vh; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.toolbar .group { display: flex; gap: 2px; }
+.toolbar .group button { border-radius: 0; }
+.toolbar .group button:first-child { border-radius: 6px 0 0 6px; }
+.toolbar .group button:last-child { border-radius: 0 6px 6px 0; }
+.toolbar .spacer { flex: 1; }
+#picture { max-width: 220px; }
+#play { min-width: 64px; }
+.stats { display: flex; gap: 14px; font-family: var(--mono); font-size: 12px; color: var(--muted); align-items: center; }
+.stats b { color: var(--text); font-weight: 500; }
+.busy { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); }
+.busy.on { background: var(--accent); animation: pulse 0.8s ease-in-out infinite alternate; }
+@keyframes pulse { from { opacity: 0.3; } to { opacity: 1; } }
+.note { color: var(--muted); font-size: 12px; padding: 6px 14px; border-bottom: 1px solid var(--line); }
+.note:empty { display: none; }
+.error { color: var(--bad); font-size: 12px; padding: 6px 14px; border-bottom: 1px solid var(--line); font-family: var(--mono); white-space: pre-wrap; }
+.error:empty { display: none; }
+pre.code { margin: 0; padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--line); font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow: auto; max-height: 34vh; }
+pre.code[hidden] { display: none; }
+
+#stage { flex: 1; min-height: 0; display: flex; gap: 10px; padding: 12px; }
+.pane { flex: 1; min-width: 0; display: none; flex-direction: column; margin: 0; }
+.pane.shown { display: flex; }
+.pane figcaption { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 0 6px; display: flex; gap: 10px; }
+.pane figcaption span { text-transform: none; letter-spacing: 0; font-family: var(--mono); }
+.frame { flex: 1; min-height: 0; overflow: auto; display: flex; background: #000; border-radius: 6px; }
+.frame > * { margin: auto; flex: none; display: block; }
+.zoomed canvas, .zoomed img, .zoomed video { image-rendering: pixelated; }
+.wipe { position: relative; cursor: ew-resize; }
+.wipe > img, .wipe > video, .wipe > canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+.wipe-line { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent); pointer-events: none; z-index: 2; }
+.wipe-tag { position: absolute; top: 6px; font-size: 11px; background: rgba(0,0,0,0.6); padding: 1px 6px; border-radius: 4px; pointer-events: none; z-index: 2; }
+
+#sweep { border-top: 1px solid var(--line); background: var(--panel); max-height: 44vh; display: flex; flex-direction: column; }
+#sweep[hidden] { display: none; }
+.sweep-head { display: flex; align-items: center; gap: 10px; padding: 8px 14px; }
+.sweep-head b { font-family: var(--mono); font-weight: 500; color: var(--accent); }
+.sweep-head span { color: var(--muted); font-size: 12px; flex: 1; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; padding: 0 14px 12px; overflow-y: auto; }
+.tile { margin: 0; cursor: pointer; border: 1px solid transparent; border-radius: 6px; padding: 3px; }
+.tile:hover { border-color: var(--faint); }
+.tile.current { border-color: var(--accent); }
+.tile canvas { width: 100%; display: block; border-radius: 3px; background: #000; }
+.tile.pending canvas { opacity: 0.35; }
+.tile figcaption { font-family: var(--mono); font-size: 11.5px; padding: 3px 2px 0; display: flex; justify-content: space-between; color: var(--muted); }
+.tile figcaption b { color: var(--text); font-weight: 500; }
+
+@media (max-width: 820px) {
+  body { grid-template-columns: 1fr; overflow: auto; height: auto; }
+  aside { border-right: none; border-bottom: 1px solid var(--line); }
+  main { height: auto; }
+  #stage { height: 70vh; flex-direction: column; }
+}
+</style>
+</head>
+<body>
+<aside>
+  <div class="brand">
+    <h1>analog-vision</h1><span>NTSC over an FM link</span>
+    <button id="resetAll" title="Every setting back to its default">Reset</button>
+  </div>
+  <div class="presets" id="presets"></div>
+  <div id="controls"></div>
+</aside>
+<main>
+  <div class="toolbar">
+    <select id="picture" title="The picture through the link"></select>
+    <button id="open" title="A picture or a video of your own (it stays in this browser)">Open…</button>
+    <input id="file" type="file" accept="image/*,video/*" hidden>
+    <button id="play" title="Pause the signal (space)">Pause</button>
+    <div class="group" id="modes">
+      <button data-mode="output">Goggles</button>
+      <button data-mode="side">Side by side</button>
+      <button data-mode="wipe">Wipe</button>
+      <button data-mode="python" title="The Python's picture at the same settings, beside the live one">vs Python</button>
+    </div>
+    <div class="group" id="zooms">
+      <button data-zoom="fit">Fit</button>
+      <button data-zoom="1">1×</button>
+      <button data-zoom="2">2×</button>
+      <button data-zoom="4">4×</button>
+    </div>
+    <button id="reroll" title="Another draw of the receiver's noise (seed + 1)">Re-roll</button>
+    <button id="codeBtn" title="These settings, as code">Code</button>
+    <div class="spacer"></div>
+    <div class="stats">
+      <span>CNR <b id="sCnr">–</b></span>
+      <span>sync <b id="sSync">–</b></span>
+      <span>colour <b id="sColour">–</b></span>
+      <span id="sRate">–</span>
+    </div>
+  </div>
+  <div class="note" id="note"></div>
+  <div class="error" id="error"></div>
+  <pre class="code" id="code" hidden></pre>
+  <div id="stage">
+    <figure class="pane" id="paneCam"><figcaption>Camera</figcaption><div class="frame" id="frameCam"></div></figure>
+    <figure class="pane" id="paneLive"><figcaption id="capLive">Goggles</figcaption><div class="frame" id="frameLive"></div></figure>
+    <figure class="pane" id="panePy"><figcaption>Python <span id="capPy"></span><div class="busy" id="busy"></div></figcaption><div class="frame" id="framePy"></div></figure>
+    <figure class="pane" id="paneWipe"><figcaption>Camera | Goggles: move across to compare</figcaption>
+      <div class="frame" id="frameWipe"><div class="wipe" id="wipe">
+        <div class="wipe-line" id="wipeLine"></div>
+        <span class="wipe-tag" style="left:6px">Camera</span><span class="wipe-tag" style="right:6px">Goggles</span>
+      </div></div>
+    </figure>
+  </div>
+  <section id="sweep" hidden>
+    <div class="sweep-head">
+      <b id="sweepName"></b><span id="sweepNote"></span>
+      <button id="sweepClose">Close</button>
+    </div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+</main>
+<script type="module">
+import { AnalogFeed, indoorEchoes, linkCnrDb } from "./analog.js";
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (v !== undefined && v !== null && v !== false) e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat()) if (k != null) e.append(k);
+  return e;
+};
+const clone = (x) => JSON.parse(JSON.stringify(x));
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const getPath = (o, path) => path.reduce((x, k) => (x == null ? undefined : x[k]), o);
+function setPath(o, path, v) {
+  let x = o;
+  for (const k of path.slice(0, -1)) x = x[k];
+  x[path[path.length - 1]] = v;
+}
+const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
+/** A seeded random number generator: the same indoor channel for the same seed. */
+function mulberry32(a) {
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+let S;            // the schema: controls, docs, presets, pictures
+let defaults;     // every setting at its default
+let state;        // what is shown
+let lastRange;    // range settings, kept while CNR is set directly
+let indoor;       // the random indoor channel's settings
+let view = { mode: "side", zoom: "fit", wipe: 0.5 };
+let paused = false;
+const ECHO = { delay_s: 40e-9, level_db: -3, phase_deg: 0, doppler_hz: 0 };
+const byName = (list) => Object.fromEntries(list.map((c) => [c.name, c.default]));
+
+// The live picture: the chain on the GPU, drawing into this canvas at the decoder's 754 x 480.
+const canvas = el("canvas", { width: 754, height: 480 });
+const feed = new AnalogFeed(canvas, {}, { fit: false });
+const gpu = feed.ok;
+let sweeper = null; // a second chain, off screen, for sweeps
+const pyImg = el("img", { alt: "The Python's picture" });
+
+// ---- the picture ---------------------------------------------------------------------
+
+/** What goes through the link: its element (an image or a playing video), its name, and its
+ * name on the server, for the Python. */
+let source = { el: null, name: "", server: null, video: false };
+let pictures = []; // { name, url, file? }
+
+async function setPicture(name) {
+  const entry = pictures.find((p) => p.name === name) || pictures[0];
+  state.picture = entry.name;
+  $("picture").value = entry.name;
+  const video = entry.file ? entry.file.type.startsWith("video/") : false;
+  let node;
+  if (video) {
+    node = el("video", { muted: true, loop: true, playsinline: true, autoplay: true });
+    node.muted = true;
+    node.src = entry.url;
+    await node.play().catch(() => {});
+    await new Promise((r) => (node.readyState >= 2 ? r() : node.addEventListener("loadeddata", r, { once: true })));
+    if (paused) node.pause();
+  } else {
+    node = el("img", { alt: "The picture in" });
+    node.src = entry.url;
+    await node.decode();
+  }
+  if (source.el?.tagName === "VIDEO") source.el.pause();
+  source = { el: node, name: entry.name, server: entry.file ? null : entry.name, video, file: entry.file };
+  arrange();
+  changed();
+}
+
+function fillPictures() {
+  $("picture").replaceChildren(...pictures.map((p) => el("option", { value: p.name }, p.name)));
+  $("picture").value = state.picture;
+}
+
+const natural = () => {
+  const e = source.el;
+  return e ? [e.videoWidth || e.naturalWidth || 754, e.videoHeight || e.naturalHeight || 480] : [754, 480];
+};
+
+// ---- numbers -------------------------------------------------------------------------
+
+const decimals = (step) => (String(step).split(".")[1] || "").length;
+const fmt = (d, step) => String(+(+d).toFixed(decimals(step)));
+const scaleOf = (c) => c.scale || 1;
+function toSlider(d, c) {
+  if (c.log) return (1000 * Math.log(Math.max(d, c.min) / c.min)) / Math.log(c.max / c.min);
+  return d;
+}
+function fromSlider(p, c) {
+  const d = c.log ? c.min * Math.pow(c.max / c.min, p / 1000) : +p;
+  return +fmt(Math.round(d / c.step) * c.step, c.step);
+}
+function sweepValues(c, n = 9) {
+  if (c.choices) return c.choices;
+  if (typeof c.default === "boolean") return [false, true];
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1);
+    const d = c.log ? c.min * Math.pow(c.max / c.min, t) : c.min + t * (c.max - c.min);
+    out.push(+fmt(Math.round(d / c.step) * c.step, c.step) / scaleOf(c));
+  }
+  return [...new Set(out)];
+}
+const showValue = (v, c) => {
+  if (typeof v === "boolean") return v ? "on" : "off";
+  if (typeof v === "string") return v;
+  return fmt(v * scaleOf(c), c.step) + (c.unit ? " " + c.unit : "");
+};
+
+// ---- settings for the chain ----------------------------------------------------------
+
+function cnrOf(st) {
+  const r = st.range;
+  if (!r) return st.link.cnr_db;
+  return linkCnrDb(r.distance_m, r.tx_mw, r.tx_gain_dbi, r.rx_gain_dbi, {
+    frequency_hz: r.frequency_hz,
+    noise_figure_db: r.noise_figure_db,
+    extra_loss_db: r.extra_loss_db,
+    if_bandwidth_hz: st.link.if_bandwidth_hz,
+  });
+}
+
+/** The page's settings as analog.js (and the Python) take them. */
+function chainSettings(st) {
+  return {
+    link: { ...st.link, cnr_db: cnrOf(st), multipath: st.echoes },
+    decoder: st.decoder,
+    deinterlace: st.deinterlace,
+    dvr: st.dvr,
+    seed: st.seed,
+  };
+}
+
+// ---- controls ------------------------------------------------------------------------
+
+const refreshers = [];
+
+function control(path, c, opts = {}) {
+  const hasDefault = opts.hasDefault !== false;
+  const target = opts.target || (() => state);
+  const after = opts.onChange || changed;
+  const root = el("div", { class: "ctl" });
+  const head = el("div", { class: "ctl-head" }, el("span", { class: "ctl-name", title: c.name }, c.label || c.name));
+  root.append(head);
+  const value = () => getPath(target(), path);
+  const markChanged = () => root.classList.toggle("changed", hasDefault && !same(value(), c.default));
+  const commit = (v) => { setPath(target(), path, v); markChanged(); after(); };
+  let refresh;
+
+  if (c.choices || typeof c.default === "boolean") {
+    const options = c.choices || [false, true];
+    const sel = el("select", { onchange: () => commit(options[sel.selectedIndex]) },
+      options.map((o) => el("option", {}, showValue(o, c))));
+    head.append(sel);
+    refresh = () => { sel.selectedIndex = options.indexOf(value()); };
+  } else if (c.parts) {
+    const rows = c.parts.map((p, i) => {
+      const num = el("input", { type: "number", step: p.step });
+      const range = el("input", { type: "range", min: p.min, max: p.max, step: p.step });
+      const set = (d) => { const v = clone(value()); v[i] = d; commit(v); };
+      range.addEventListener("input", () => { num.value = range.value; set(+range.value); });
+      num.addEventListener("change", () => { range.value = num.value; set(+num.value); });
+      root.append(el("div", { class: "part" }, el("span", {}, p.label), range, num));
+      return [num, range];
+    });
+    refresh = () => rows.forEach(([num, range], i) => { num.value = value()[i]; range.value = value()[i]; });
+  } else {
+    const k = scaleOf(c);
+    const num = el("input", { type: "number", step: c.step });
+    const range = c.log
+      ? el("input", { type: "range", min: 0, max: 1000, step: 1 })
+      : el("input", { type: "range", min: c.min, max: c.max, step: c.step });
+    head.append(num, el("span", { class: "unit" }, c.unit || ""));
+    root.append(range);
+    range.addEventListener("input", () => {
+      const d = fromSlider(range.value, c);
+      num.value = d;
+      commit(d / k);
+    });
+    num.addEventListener("change", () => {
+      if (num.value === "") return refresh();
+      range.value = toSlider(+num.value, c);
+      commit(+num.value / k);
+    });
+    refresh = () => {
+      const v = value();
+      num.value = fmt(v * k, c.step);
+      range.value = toSlider(v * k, c);
+      num.disabled = range.disabled = !!opts.disabled;
+    };
+    if (opts.disabled) { num.title = opts.disabled; range.title = opts.disabled; }
+  }
+
+  if (!c.parts && opts.sweep !== false) {
+    const btn = el("button", {
+      class: "icon sweep", title: "Sweep: a picture at each value, the rest as set",
+      onclick: () => startSweep(path, c),
+    }, "⋯");
+    if (sweep && same(sweep.path, path)) btn.classList.add("sweeping");
+    head.append(btn);
+  }
+  if (hasDefault) {
+    head.append(el("button", {
+      class: "icon reset", title: "Back to " + showValue(c.default, c),
+      onclick: () => { commit(clone(c.default)); refresh(); },
+    }, "↺"));
+  }
+  if (c.doc) {
+    const doc = el("div", { class: "ctl-doc", title: "Click for all of it", onclick: () => doc.classList.toggle("open") }, c.doc);
+    root.append(doc);
+  }
+  const full = () => { refresh(); markChanged(); };
+  refreshers.push(full);
+  full();
+  return root;
+}
+
+function about(text) {
+  if (!text) return null;
+  const p = el("p", { class: "about clamp", title: "Click for all of it" }, text);
+  p.addEventListener("click", () => p.classList.toggle("clamp"));
+  return p;
+}
+
+const openSections = new Set(["run", "link", "echoes"]);
+function section(id, title, kids, count) {
+  const d = el("details", { class: "section", "data-id": id },
+    el("summary", {}, title, el("span", { class: "count" }, count || "")),
+    el("div", { class: "body" }, kids));
+  d.open = openSections.has(id);
+  d.addEventListener("toggle", () => { d.open ? openSections.add(id) : openSections.delete(id); });
+  return d;
+}
+
+function changedCount(obj, list) {
+  const n = list.filter((c) => !same(obj[c.name], c.default)).length;
+  return n ? `${n} changed` : "";
+}
+
+function buildControls() {
+  refreshers.length = 0;
+  const C = S.controls;
+  const root = $("controls");
+  root.replaceChildren();
+
+  root.append(section("run", "Run", C.run.map((c) => control([c.name], c))));
+
+  // Link, with CNR set directly or from the range.
+  const fromRange = !!state.range;
+  const rangeToggle = el("input", { type: "checkbox", id: "fromRange", checked: fromRange,
+    onchange: () => {
+      if (rangeToggle.checked) state.range = lastRange || byName(C.range);
+      else { lastRange = state.range; state.range = null; }
+      buildControls(); changed();
+    } });
+  const linkKids = [about(S.docs.link),
+    el("div", { class: "row" }, rangeToggle, el("label", { for: "fromRange" }, "CNR from the range (free space)"))];
+  for (const c of C.link) {
+    const disabled = c.name === "cnr_db" && fromRange ? "Set by the range below" : undefined;
+    linkKids.push(control(["link", c.name], c, { disabled, sweep: !disabled }));
+    if (c.name === "cnr_db" && fromRange) {
+      linkKids.push(el("h3", {}, "Range"), about(S.docs.range), ...C.range.map((r) => control(["range", r.name], r)));
+    }
+  }
+  root.append(section("link", "Link", linkKids, changedCount(state.link, C.link)));
+
+  // Echoes.
+  const echoKids = [about(S.docs.echo)];
+  state.echoes.forEach((e, i) => {
+    echoKids.push(el("div", { class: "echo" },
+      el("div", { class: "echo-head" }, el("span", {}, `Echo ${i + 1}`),
+        el("button", { class: "icon", title: "Remove it", onclick: () => {
+          state.echoes.splice(i, 1); closeSweepUnder(["echoes"]); buildControls(); changed();
+        } }, "✕")),
+      C.echo.map((c) => control(["echoes", i, c.name], c, { hasDefault: false }))));
+  });
+  echoKids.push(el("div", { class: "row" },
+    state.echoes.length < 8 ? el("button", { onclick: () => { state.echoes.push(clone(ECHO)); buildControls(); changed(); } }, "Add echo") : null,
+    state.echoes.length ? el("button", { onclick: () => {
+      state.echoes = []; closeSweepUnder(["echoes"]); buildControls(); changed();
+    } }, "Clear") : null));
+  const indoorBox = el("div", { class: "indoor" }, el("h3", {}, "Random indoor channel"), about(S.docs.indoor));
+  for (const c of C.indoor) {
+    indoorBox.append(control([c.name], c, { hasDefault: false, sweep: false, target: () => indoor, onChange: () => {} }));
+  }
+  indoorBox.append(el("button", { onclick: drawIndoor }, "Draw echoes"));
+  echoKids.push(indoorBox);
+  root.append(section("echoes", "Multipath", echoKids, state.echoes.length ? `${state.echoes.length} echoes` : ""));
+
+  // Decoder, in its groups.
+  const decKids = [about(S.docs.decoder),
+    el("div", { class: "row" }, el("label", {}, "As"),
+      el("button", { onclick: () => applyDecoder({}) }, "Goggles (notch)"),
+      el("button", { onclick: () => applyDecoder({ yc: "comb" }) }, "HDZero monitor (comb)"))];
+  let group;
+  for (const c of C.decoder) {
+    if (c.group !== group) { group = c.group; decKids.push(el("h3", {}, group)); }
+    decKids.push(control(["decoder", c.name], c));
+  }
+  root.append(section("decoder", "Decoder", decKids, changedCount(state.decoder, C.decoder)));
+
+  // Recorder.
+  const kinds = ["Screen (no recorder)", "Goggles DVR", "HDMI capture"];
+  const hdmi = S.presets.find((p) => p.name === "HDZero monitor").state.dvr;
+  const kind = !state.dvr ? 0 : same(state.dvr, hdmi) ? 2 : 1;
+  const sel = el("select", { onchange: () => {
+    state.dvr = [null, byName(C.dvr), clone(hdmi)][sel.selectedIndex];
+    buildControls(); changed();
+  } }, kinds.map((k) => el("option", {}, k)));
+  sel.selectedIndex = kind;
+  const dvrKids = [about(S.docs.dvr), el("div", { class: "row" }, el("label", {}, "Show"), sel)];
+  if (state.dvr) dvrKids.push(...C.dvr.map((c) => control(["dvr", c.name], c)));
+  root.append(section("dvr", "Recorder", dvrKids, state.dvr ? kinds[kind] : ""));
+}
+
+function applyDecoder(over) {
+  state.decoder = { ...byName(S.controls.decoder), ...over };
+  buildControls(); changed();
+}
+
+function drawIndoor() {
+  const { seed, ...params } = indoor;
+  state.echoes = indoorEchoes(mulberry32(seed), params);
+  closeSweepUnder(["echoes"]);
+  buildControls(); changed();
+}
+
+function updateCounts() {
+  const C = S.controls;
+  const counts = {
+    link: changedCount(state.link, C.link),
+    echoes: state.echoes.length ? `${state.echoes.length} echoes` : "",
+    decoder: changedCount(state.decoder, C.decoder),
+  };
+  for (const [id, text] of Object.entries(counts)) {
+    const span = document.querySelector(`details[data-id="${id}"] > summary .count`);
+    if (span) span.textContent = text;
+  }
+}
+
+// ---- live ----------------------------------------------------------------------------
+
+let stillWanted = false;
+
+function changed() {
+  if (gpu) feed.set(chainSettings(state));
+  if (paused) stillWanted = true;
+  $("sCnr").textContent = cnrOf(state).toFixed(1) + " dB";
+  writeHash();
+  updateCounts();
+  if (!$("code").hidden) showCode();
+  schedulePython();
+  scheduleSweep();
+}
+
+/** A still of the settings as they are: the chain from the start, `frames` frames. */
+function still() {
+  if (!gpu || !source.el) return;
+  feed.reset();
+  feed.run(source.el, state.frames * 525);
+  feed.draw();
+  showStats(feed.stats());
+}
+
+let lastTick = 0, statsAt = 0, rate = 0;
+function tick(now) {
+  if (gpu && source.el) {
+    if (!paused) feed.frame(source.el, null, now);
+    else if (stillWanted) { stillWanted = false; still(); }
+    if (!paused && now - statsAt > 300) { statsAt = now; showStats(feed.stats()); }
+  }
+  if (lastTick) rate += (1000 / Math.max(now - lastTick, 1) - rate) * 0.05;
+  lastTick = now;
+  $("sRate").textContent = paused ? "paused" : gpu ? `${Math.round(rate)} fps` : "";
+  requestAnimationFrame(tick);
+}
+
+function showStats({ synced, colour }) {
+  $("sSync").textContent = Math.round(synced * 100) + "%";
+  $("sColour").textContent = Math.round(colour * 100) + "%";
+  $("sSync").style.color = synced < 0.9 ? "var(--bad)" : "";
+  $("sColour").style.color = colour < 0.5 ? "var(--bad)" : "";
+}
+
+function setPaused(p) {
+  paused = p;
+  $("play").textContent = paused ? "Play" : "Pause";
+  $("play").classList.toggle("on", paused);
+  if (source.el?.tagName === "VIDEO") paused ? source.el.pause() : source.el.play();
+  if (paused) stillWanted = true;
+}
+
+// ---- the Python's picture ------------------------------------------------------------
+
+let pyTimer, pyBusy = false, pyPending = false, pyUrl;
+const pythonShown = () => S.python && (view.mode === "python" || !gpu);
+
+function schedulePython() {
+  if (!pythonShown()) return;
+  pyPending = true;
+  clearTimeout(pyTimer);
+  pyTimer = setTimeout(pumpPython, 60);
+}
+
+async function serverName() {
+  if (source.server) return source.server;
+  if (source.video) throw new Error("The Python takes stills: open a picture to compare with it.");
+  const r = await fetch("api/upload?name=" + encodeURIComponent(source.file.name), { method: "POST", body: source.file });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  source.server = j.name;
+  return j.name;
+}
+
+async function pumpPython() {
+  if (pyBusy || !pyPending) return;
+  pyPending = false; pyBusy = true;
+  $("busy").classList.add("on");
+  try {
+    const st = { ...clone(state), picture: await serverName() };
+    const r = await fetch("api/render", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(st) });
+    if (!r.ok) throw new Error((await r.json()).error);
+    const info = JSON.parse(r.headers.get("X-Info"));
+    if (pyUrl) URL.revokeObjectURL(pyUrl);
+    pyUrl = URL.createObjectURL(await r.blob());
+    pyImg.src = pyUrl;
+    $("capPy").textContent = `${state.frames} frames, ${info.seconds.toFixed(2)} s · sync ${Math.round(info.synced * 100)}% · colour ${Math.round(info.colour * 100)}%`;
+    if (!gpu) showStats(info);
+    $("error").textContent = "";
+  } catch (e) { $("error").textContent = String(e.message || e); }
+  pyBusy = false;
+  $("busy").classList.remove("on");
+  if (pyPending) pumpPython();
+}
+
+// ---- sweep ---------------------------------------------------------------------------
+
+let sweep = null; // { path, c, base, token }
+let sweepTimer;
+
+const withoutPath = (st, path) => { const x = clone(st); setPath(x, path, null); return x; };
+
+function startSweep(path, c) {
+  sweep = { path, c, base: null, token: 0 };
+  buildControls();
+  $("sweep").hidden = false;
+  $("sweepName").textContent = path.join(".");
+  runSweep();
+  requestAnimationFrame(layout);
+}
+function closeSweepUnder(prefix) {
+  if (sweep && same(sweep.path.slice(0, prefix.length), prefix)) closeSweep();
+}
+function closeSweep() {
+  sweep = null;
+  $("sweep").hidden = true;
+  document.querySelectorAll(".icon.sweep").forEach((b) => b.classList.remove("sweeping"));
+  requestAnimationFrame(layout);
+}
+function scheduleSweep() {
+  if (!sweep || same(sweep.base, withoutPath(state, sweep.path))) return;
+  clearTimeout(sweepTimer);
+  sweepTimer = setTimeout(runSweep, 120);
+}
+
+async function runSweep() {
+  const s = sweep;
+  if (!s || !source.el) return;
+  const token = ++s.token;
+  s.base = withoutPath(state, s.path);
+  const values = sweepValues(s.c);
+  const current = getPath(state, s.path);
+  const [w, h] = natural();
+  $("sweepNote").textContent = gpu
+    ? `${values.length} stills of ${state.frames} frames, everything else as set${source.video ? ", from the video as it is now" : ""}. Click one to take its value.`
+    : "Sweeps run on the GPU: this browser has no WebGL2.";
+  if (!gpu) return $("tiles").replaceChildren();
+  sweeper ??= new AnalogFeed(new OffscreenCanvas(754, 480));
+  const tiles = $("tiles");
+  const old = [...tiles.children];
+  tiles.replaceChildren();
+  const jobs = values.map((v, i) => {
+    const reuse = old[i] && old[i].dataset.value === JSON.stringify(v) ? old[i].querySelector("canvas") : null;
+    const cv = reuse || el("canvas", { width: 754, height: 480 });
+    cv.style.aspectRatio = `${w} / ${h}`;
+    const cap = el("figcaption", {}, el("b", {}, showValue(v, s.c)), el("span", {}, ""));
+    const isCurrent = typeof v === "number" ? Math.abs(v - current) <= Math.abs(s.c.step / scaleOf(s.c)) / 2 : v === current;
+    const tile = el("figure", { class: "tile pending" + (isCurrent ? " current" : ""), "data-value": JSON.stringify(v),
+      onclick: () => {
+        setPath(state, s.path, clone(v));
+        refreshers.forEach((f) => f());
+        tiles.querySelectorAll(".tile").forEach((t) => t.classList.toggle("current", t === tile));
+        changed();
+      } }, cv, cap);
+    tiles.append(tile);
+    return { v, cv, cap, tile };
+  });
+  for (const { v, cv, cap, tile } of jobs) {
+    await nextFrame();
+    if (sweep !== s || s.token !== token) return;
+    const st = clone(state);
+    setPath(st, s.path, clone(v));
+    sweeper.set(chainSettings(st));
+    sweeper.reset();
+    sweeper.run(source.el, st.frames * 525);
+    const shown = await sweeper.recorded();
+    if (sweep !== s || s.token !== token) return;
+    cv.width = shown.width;
+    cv.height = shown.height;
+    cv.getContext("2d").drawImage(shown, 0, 0);
+    tile.classList.remove("pending");
+    const info = sweeper.stats();
+    const flags = [];
+    if (s.path[0] === "range" || s.path[1] !== "cnr_db") flags.push(cnrOf(st).toFixed(1) + " dB");
+    if (info.synced < 0.9) flags.push("sync " + Math.round(info.synced * 100) + "%");
+    if (info.colour < 0.5) flags.push("b&w");
+    cap.lastChild.textContent = flags.join(" · ");
+  }
+}
+
+// ---- the stage -----------------------------------------------------------------------
+
+/** Each element where the view mode puts it: the live canvas (or, without a GPU, the
+ * Python's picture) as the goggles. */
+function arrange() {
+  const goggles = gpu ? canvas : pyImg;
+  const shown = { output: ["paneLive"], side: ["paneCam", "paneLive"], wipe: ["paneWipe"], python: ["paneLive", "panePy"] }[view.mode];
+  for (const id of ["paneCam", "paneLive", "panePy", "paneWipe"]) $(id).classList.toggle("shown", shown.includes(id));
+  $("capLive").textContent = gpu ? "Goggles" : "Goggles (the Python's: no WebGL2 here)";
+  if (view.mode === "wipe") {
+    if (source.el) $("wipe").prepend(source.el);
+    source.el?.after(goggles);
+  } else {
+    if (source.el) $("frameCam").replaceChildren(source.el);
+    $("frameLive").replaceChildren(goggles);
+    if (gpu) $("framePy").replaceChildren(pyImg);
+  }
+  layout();
+}
+
+function layout() {
+  const [w, h] = natural();
+  const z = view.zoom;
+  const goggles = gpu ? canvas : pyImg;
+  const fit = (frame) => (z === "fit" ? Math.min(frame.clientWidth / w, frame.clientHeight / h) : +z);
+  const size = (e, k) => { if (e) { e.style.width = Math.floor(w * k) + "px"; e.style.height = Math.floor(h * k) + "px"; } };
+  if (view.mode === "wipe") {
+    const k = fit($("frameWipe"));
+    size($("wipe"), k);
+    const x = view.wipe * 100;
+    goggles.style.clipPath = `inset(0 0 0 ${x}%)`;
+    $("wipeLine").style.left = x + "%";
+  } else {
+    goggles.style.clipPath = "";
+    size(source.el, fit($("frameCam").clientWidth ? $("frameCam") : $("frameLive")));
+    size(goggles, fit($("frameLive")));
+    if (gpu) size(pyImg, fit($("framePy")));
+  }
+  for (const id of ["frameCam", "frameLive", "framePy", "frameWipe"]) $(id).classList.toggle("zoomed", z !== "fit");
+}
+
+function setView(over) {
+  Object.assign(view, over);
+  if (view.mode === "python" && !S.python) view.mode = "side";
+  document.querySelectorAll("#modes button").forEach((b) => b.classList.toggle("on", b.dataset.mode === view.mode));
+  document.querySelectorAll("#zooms button").forEach((b) => b.classList.toggle("on", b.dataset.zoom === String(view.zoom)));
+  arrange();
+  schedulePython();
+  try { localStorage.setItem("analog-vision-view", JSON.stringify(view)); } catch {}
+}
+
+// ---- code ----------------------------------------------------------------------------
+
+function py(v) {
+  if (typeof v === "boolean") return v ? "True" : "False";
+  if (typeof v === "string") return JSON.stringify(v);
+  if (Array.isArray(v)) return "(" + v.map(py).join(", ") + (v.length === 1 ? ",)" : ")");
+  const a = Math.abs(v);
+  if (a !== 0 && (a >= 1e5 || a < 1e-3)) return (+v.toPrecision(6)).toExponential().replace("e+", "e");
+  return String(+v.toPrecision(6));
+}
+const changes = (obj, list) => list.filter((c) => obj[c.name] !== undefined && !same(obj[c.name], c.default));
+function showCode() {
+  const C = S.controls;
+  const link = changes(state.link, C.link).map((c) => `${c.name}=${py(state.link[c.name])}`);
+  const imports = ["AnalogVideo", "Link"];
+  if (state.range) {
+    imports.push("link_cnr_db");
+    const r = C.range.filter((c) => c.name === "distance_m" || !same(state.range[c.name], c.default))
+      .map((c) => `${c.name}=${py(state.range[c.name])}`);
+    if (state.link.if_bandwidth_hz !== defaults.link.if_bandwidth_hz) r.push(`if_bandwidth_hz=${py(state.link.if_bandwidth_hz)}`);
+    const i = link.findIndex((s) => s.startsWith("cnr_db="));
+    if (i >= 0) link.splice(i, 1);
+    link.unshift(`cnr_db=link_cnr_db(${r.join(", ")})`);
+  }
+  if (state.echoes.length) {
+    imports.push("Echo");
+    const echoes = state.echoes.map((e) => `        Echo(${C.echo.map((c) => `${c.name}=${py(e[c.name])}`).join(", ")}),`);
+    link.push(`multipath=(\n${echoes.join("\n")}\n    )`);
+  }
+  const args = [`    Link(${link.join(", ")}),`];
+  const dec = changes(state.decoder, C.decoder).map((c) => `${c.name}=${py(state.decoder[c.name])}`);
+  if (dec.length) { imports.push("Decoder"); args.push(`    Decoder(${dec.join(", ")}),`); }
+  args.push(`    seed=${state.seed},`);
+  if (state.deinterlace !== "weave") args.push(`    deinterlace=${py(state.deinterlace)},`);
+  if (state.dvr) { imports.push("Dvr"); args.push(`    dvr=Dvr(${changes(state.dvr, C.dvr).map((c) => `${c.name}=${py(state.dvr[c.name])}`).join(", ")}),`); }
+  imports.sort();
+  const settings = chainSettings(state);
+  const js = {
+    link: Object.fromEntries(Object.entries(settings.link).filter(([k, v]) => !same(v, defaults.link[k] ?? []))),
+    decoder: Object.fromEntries(Object.entries(settings.decoder).filter(([k, v]) => !same(v, defaults.decoder[k]))),
+  };
+  if (state.deinterlace !== "weave") js.deinterlace = state.deinterlace;
+  if (state.dvr) js.dvr = state.dvr;
+  $("code").textContent =
+    `# Python\nfrom analog_vision import ${imports.join(", ")}\n\n` +
+    `sim = AnalogVideo(\n${args.join("\n")}\n)\n` +
+    `for frame in frames:\n    shown = sim.show(frame)   # shown.image: what the goggles show\n\n` +
+    `// The browser: analog.js, live on the GPU\n` +
+    `import { AnalogFeed } from "./analog.js";\n` +
+    `const feed = new AnalogFeed(canvas, ${JSON.stringify(js, null, 2)});\n` +
+    `// each animation frame: feed.frame(videoOrImage, null, performance.now());`;
+}
+
+// ---- state in the address ------------------------------------------------------------
+
+function writeHash() {
+  history.replaceState(null, "", "#" + encodeURIComponent(JSON.stringify(state)));
+}
+function readHash() {
+  if (location.hash.length < 2) return null;
+  try { return JSON.parse(decodeURIComponent(location.hash.slice(1))); } catch { return null; }
+}
+function merge(base, over) {
+  for (const [k, v] of Object.entries(over || {})) {
+    if (v && typeof v === "object" && !Array.isArray(v) && base[k] && typeof base[k] === "object") merge(base[k], v);
+    else base[k] = clone(v);
+  }
+  return base;
+}
+
+// ---- start ---------------------------------------------------------------------------
+
+async function main() {
+  S = await (await fetch("api/schema")).json();
+  pictures = S.pictures;
+  const C = S.controls;
+  const lab = pictures.find((p) => p.name.endsWith("lab_02.jpeg"));
+  defaults = {
+    picture: (lab || pictures[0]).name,
+    ...byName(C.run),
+    link: byName(C.link),
+    range: null,
+    echoes: [],
+    decoder: byName(C.decoder),
+    dvr: null,
+  };
+  indoor = { ...byName(C.indoor), count: 3 };
+  state = merge(clone(defaults), readHash() || {});
+  if (!pictures.some((p) => p.name === state.picture)) state.picture = defaults.picture;
+  if (!S.python || !gpu) document.querySelector('#modes [data-mode="python"]').remove();
+  if (!gpu) {
+    $("note").textContent = S.python
+      ? "This browser has no WebGL2 with float render targets, so the picture is the Python's, a still for each setting."
+      : "This browser has no WebGL2 with float render targets: the simulation cannot run here.";
+    $("play").hidden = true;
+  }
+
+  fillPictures();
+  $("picture").addEventListener("change", () => setPicture($("picture").value));
+  $("open").addEventListener("click", () => $("file").click());
+  $("file").addEventListener("change", () => {
+    const f = $("file").files[0];
+    if (!f) return;
+    let name = f.name;
+    for (let n = 2; pictures.some((p) => p.name === name); n++) name = `${n}-${f.name}`;
+    pictures.push({ name, url: URL.createObjectURL(f), file: f });
+    fillPictures();
+    setPicture(name);
+    $("file").value = "";
+  });
+
+  for (const p of S.presets) {
+    $("presets").append(el("button", { title: p.note, onclick: () => {
+      const picture = state.picture;
+      state = merge(clone(defaults), p.state);
+      state.picture = picture;
+      if (sweep && getPath(state, sweep.path) === undefined) closeSweep();
+      buildControls(); changed();
+    } }, p.name));
+  }
+  $("resetAll").addEventListener("click", () => {
+    const picture = state.picture;
+    state = clone(defaults);
+    state.picture = picture;
+    if (sweep && getPath(state, sweep.path) === undefined) closeSweep();
+    buildControls(); changed();
+  });
+  $("play").addEventListener("click", () => setPaused(!paused));
+  document.addEventListener("keydown", (e) => {
+    if (e.code === "Space" && !["INPUT", "SELECT", "BUTTON"].includes(document.activeElement?.tagName) && gpu) {
+      e.preventDefault();
+      setPaused(!paused);
+    }
+  });
+  $("reroll").addEventListener("click", () => { state.seed = (state.seed + 1) % 1000; refreshers.forEach((f) => f()); changed(); });
+  $("codeBtn").addEventListener("click", () => {
+    const pre = $("code");
+    pre.hidden = !pre.hidden;
+    $("codeBtn").classList.toggle("on", !pre.hidden);
+    if (!pre.hidden) showCode();
+    requestAnimationFrame(layout);
+  });
+  $("sweepClose").addEventListener("click", () => { closeSweep(); buildControls(); });
+  document.querySelectorAll("#modes button").forEach((b) => b.addEventListener("click", () => setView({ mode: b.dataset.mode })));
+  document.querySelectorAll("#zooms button").forEach((b) => b.addEventListener("click", () => setView({ zoom: b.dataset.zoom })));
+  $("wipe").addEventListener("pointermove", (e) => {
+    const r = $("wipe").getBoundingClientRect();
+    view.wipe = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    layout();
+  });
+  // Zoomed in, the panes side by side scroll together.
+  const frames = ["frameCam", "frameLive", "framePy"].map($);
+  frames.forEach((f) => f.addEventListener("scroll", () => {
+    for (const o of frames) {
+      if (o !== f && (o.scrollLeft !== f.scrollLeft || o.scrollTop !== f.scrollTop)) {
+        o.scrollLeft = f.scrollLeft;
+        o.scrollTop = f.scrollTop;
+      }
+    }
+  }));
+  pyImg.addEventListener("load", layout);
+  new ResizeObserver(layout).observe($("stage"));
+
+  try { Object.assign(view, JSON.parse(localStorage.getItem("analog-vision-view")) || {}); } catch {}
+  buildControls();
+  setView({});
+  await setPicture(state.picture);
+  requestAnimationFrame(tick);
+}
+
+main().catch((e) => { $("error").textContent = String(e.stack || e); });
+</script>
+</body>
+</html>

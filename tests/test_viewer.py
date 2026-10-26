@@ -1,6 +1,7 @@
 """The viewer: every setting on the page, and the page's picture the library's."""
 
 import json
+import re
 from dataclasses import fields
 from pathlib import Path
 
@@ -49,3 +50,12 @@ def test_the_page_exports_as_static_files(tmp_path: Path) -> None:
     assert [p["url"] for p in s["pictures"]] == ["pictures/bars.png", "pictures/in.png"]
     for url in ("index.html", "analog.js", *(p["url"] for p in s["pictures"])):
         assert (tmp_path / "site" / url).is_file()
+    # What the page's head points at (icons, the social card), relative or at its home.
+    head = (tmp_path / "site/index.html").read_text().split("</head>")[0]
+    linked = re.findall(
+        r'(?:href|content)="(?:https://synetic-labs\.github\.io/Analog-Vision/)?([\w.-]+\.(?:svg|png|jpg))"',
+        head,
+    )
+    assert {"favicon.svg", "icon.png", "social.jpg"} <= set(linked)
+    for name in linked:
+        assert (tmp_path / "site" / name).is_file(), name

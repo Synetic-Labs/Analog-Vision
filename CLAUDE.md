@@ -16,5 +16,6 @@ simulated signal by signal.
   viewer, `analog-vision view`, and other projects that vendor it). Change it with the
   Python, stage for stage, and keep `tests/test_web.py` passing: it runs both in headless
   Chrome and needs them to agree.
-- `docs/effects.jpg` is made by `uv run python scripts/effects.py`: rerun it when the
+- `docs/effects.jpg`, and the viewer's social card and icon (`web/social.jpg`,
+  `web/icon.png`), are made by `uv run python scripts/effects.py`: rerun it when the
   simulation changes.

@@ -377,7 +377,13 @@ def web_file(name: str) -> bytes:
     return resources.files("analog_vision").joinpath("web", name).read_bytes()
 
 
-WEB_FILES = {"index.html": "text/html; charset=utf-8", "analog.js": "text/javascript"}
+WEB_FILES = {
+    "index.html": "text/html; charset=utf-8",
+    "analog.js": "text/javascript",
+    "favicon.svg": "image/svg+xml",
+    "icon.png": "image/png",
+    "social.jpg": "image/jpeg",
+}
 
 
 def handler(pictures: Pictures, pool: ProcessPoolExecutor) -> type[BaseHTTPRequestHandler]:
@@ -395,8 +401,6 @@ def handler(pictures: Pictures, pool: ProcessPoolExecutor) -> type[BaseHTTPReque
                     self._send(web_file(name), WEB_FILES[name])
                 elif url.path == "/api/schema":
                     self._json(schema(pictures.entries()))
-                elif url.path == "/favicon.ico":
-                    self._send(b"", "image/x-icon", status=204)
                 elif url.path == "/api/picture":
                     self._send(picture_bytes(pictures[query["name"][0]]), "image/png")
                 else:

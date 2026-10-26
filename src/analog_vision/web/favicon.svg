@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <clipPath id="r"><rect width="64" height="64" rx="12"/></clipPath>
+    <linearGradient id="ramp"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
+  </defs>
+  <g clip-path="url(#r)">
+    <rect x="0" width="9.2" height="44" fill="#bfbfbf"/>
+    <rect x="9.1" width="9.2" height="44" fill="#bfbf00"/>
+    <rect x="18.3" width="9.2" height="44" fill="#00bfbf"/>
+    <rect x="27.4" width="9.2" height="44" fill="#00bf00"/>
+    <rect x="36.6" width="9.2" height="44" fill="#bf00bf"/>
+    <rect x="45.7" width="9.2" height="44" fill="#bf0000"/>
+    <rect x="54.9" width="9.1" height="44" fill="#0000bf"/>
+    <rect y="44" width="64" height="20" fill="url(#ramp)"/>
+  </g>
+</svg>

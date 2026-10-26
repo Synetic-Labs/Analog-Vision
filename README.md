@@ -9,14 +9,18 @@ decoded as the goggles' decoder does it. Nothing is painted on. Every artifact c
 that chain: the grain, the colour speckle, the black and white "sparklies" near the FM
 threshold, lines torn sideways, the picture rolling, colour dropping out, then snow.
 
-![One lab frame through the simulated link: clean, grain, sparklies, colour killer, tearing,
+![Colour bars through the simulated link: clean, grain, sparklies, colour killer, tearing,
 snow, and two kinds of multipath](docs/effects.jpg)
 
-*One frame from our lab (`reference/lab/lab_02.jpeg`) through the link at falling signal
-strength, and with echoes. Made by `uv run python scripts/effects.py`.*
+*Colour bars (75 %, over a grey ramp and a 0.5 to 5 MHz sweep) through the link at falling
+signal strength, and with echoes. Made by `uv run python scripts/effects.py`.*
+
+**[Try it live in the browser](https://synetic-labs.github.io/Analog-Vision/)**: every
+setting, on colour bars, our lab captures or a picture or video of your own.
 
 Use it to train and test vision models on what an analog link really delivers, to judge a
-link budget by eye, or as the reference for a real-time version (a shader).
+link budget by eye, or live in a browser: the same chain runs on the GPU in
+`src/analog_vision/web/analog.js` (below).
 
 ```bash
 uv sync
@@ -44,6 +48,39 @@ for frame in video:                            # 29.97 frames a second
 `AnalogVideo` carries the signal on from frame to frame, as a real link does: the
 decoder's lock, its AGC, the subcarrier's phase. `set_link` changes the conditions between
 frames without breaking them.
+
+## In the browser
+
+`uv run analog-vision view` opens a page that runs the link live, at 60 fields a second: a
+picture (colour bars, anything under `reference/`, or a picture or video of your own) goes
+through it beside the original, and every field of `Link`, `Echo`, `Decoder` and `Dvr` is a
+control, with its documentation, that the picture follows as it moves. Any control can be
+swept: a still at each value along its range, everything else as set. **vs Python** sets
+the Python's picture for the same settings beside the live one. The page shows the
+settings as code, Python and JavaScript, and keeps them in its address.
+`uv run analog-vision view --export site/` writes it as static files, with colour bars and
+our lab captures, to host anywhere (without the Python beside it): `.github/workflows/pages.yml`
+does that on every push to `main` and publishes it to GitHub Pages.
+
+The live chain is `src/analog_vision/web/analog.js`, a WebGL2 port of this package, stage
+for stage, by the same settings' names; about 1 ms of GPU a field. It is held to the Python
+by `tests/test_web.py`, in headless Chrome: without noise the two pictures agree to a level
+or two in 255 (notch and comb, echoes, tuning offset, filters, levels); with noise, the
+grain's strength agrees to 0.1 dB from 20 to 3 dB, and colour and sync go at the same CNR.
+Its noise is its own draw, so no picture with noise is the Python's to the pixel; its
+recorder compresses with the browser's JPEG encoder, close to PIL's but not the same.
+
+```js
+import { AnalogFeed, linkCnrDb } from "./analog.js";
+
+const feed = new AnalogFeed(canvas, { link: { cnr_db: 9 }, decoder: { yc: "comb" } });
+function draw(now) {
+  feed.cnrDb = linkCnrDb(distanceM, 25);           // or feed.set({ link: {...}, ... })
+  feed.frame(videoOrCanvas, null, now);            // the lines due since the last frame
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+```
 
 ## How bad, how far
 
@@ -148,3 +185,6 @@ and 6.5 MHz audio subcarriers, receiver diversity switching, fading within a fra
 ```bash
 uv run ruff check src tests scripts && uv run basedpyright src tests scripts && uv run pytest -q
 ```
+
+`tests/test_web.py` needs Chrome or Chromium (on the `PATH`, or `ANALOG_VISION_CHROME`) and
+is skipped without one; a GPU makes it quick.

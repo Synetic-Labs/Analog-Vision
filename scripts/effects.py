@@ -1,4 +1,4 @@
-"""docs/effects.jpg: one lab frame through the link, one tile for each kind of damage.
+"""docs/effects.jpg: colour bars through the link, one tile for each kind of damage.
 
 uv run python scripts/effects.py
 """
@@ -9,9 +9,9 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from analog_vision import AnalogVideo, Echo, Link
+from analog_vision.patterns import colour_bars
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "reference/lab/lab_02.jpeg"
 OUT = ROOT / "docs/effects.jpg"
 TILE = (400, 300)
 CAPTION = 52
@@ -46,7 +46,7 @@ def shown(image: np.ndarray, link: Link, seed: int) -> Image.Image:
 
 
 def main() -> None:
-    frame = np.asarray(Image.open(SOURCE).convert("RGB"))[:, 106:746]
+    frame = (colour_bars() * 255 + 0.5).astype(np.uint8)
     rows = -(-len(EFFECTS) // COLUMNS)
     w, h = TILE
     sheet = Image.new(

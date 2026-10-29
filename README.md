@@ -82,6 +82,17 @@ function draw(now) {
 requestAnimationFrame(draw);
 ```
 
+Other projects depend on it from git: `package.json` makes the repository a package whose
+one export is `analog.js`. Pin a commit:
+
+```bash
+bun add github:Synetic-Labs/Analog-Vision#<commit>    # or npm install
+```
+
+```js
+import { AnalogFeed, linkCnrDb } from "analog-vision";
+```
+
 ## How bad, how far
 
 The FM threshold is about 7 to 10 dB CNR. Above it, noise grows slowly as the signal falls;

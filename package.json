@@ -1,0 +1,17 @@
+{
+  "name": "analog-vision",
+  "version": "0.1.0",
+  "description": "Analog NTSC video over a 5.8 GHz FM link, simulated signal by signal on the GPU (WebGL2): the browser half of the Python package",
+  "type": "module",
+  "exports": {
+    ".": "./src/analog_vision/web/analog.js"
+  },
+  "files": [
+    "src/analog_vision/web/analog.js"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Synetic-Labs/Analog-Vision.git"
+  },
+  "homepage": "https://synetic-labs.github.io/Analog-Vision/"
+}

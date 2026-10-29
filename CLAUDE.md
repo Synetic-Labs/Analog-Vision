@@ -13,7 +13,8 @@ simulated signal by signal.
   ours to redistribute: they stay local and git-ignored, never committed; `web/SOURCES.md`
   says where each came from.
 - `src/analog_vision/web/analog.js` is the same chain on the GPU, for the browser (the
-  viewer, `analog-vision view`, and other projects that vendor it). Change it with the
+  viewer, `analog-vision view`, and other projects, which depend on it through
+  `package.json`: its one export, so keep that pointing at it). Change it with the
   Python, stage for stage, and keep `tests/test_web.py` passing: it runs both in headless
   Chrome and needs them to agree.
 - `docs/effects.jpg`, and the viewer's social card and icon (`web/social.jpg`,
